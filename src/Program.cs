@@ -56,7 +56,17 @@ void StartApplication(string startDate, bool alwaysCapture, bool montage, bool o
 
     DateOnly.TryParse(startDate, out dateOnly);
 
-    settings.CurrentDateTime = dateOnly.ToDateTime(new TimeOnly(0, 1));
+    var updateCurrentTime = false;
+    if (dateOnly == DateOnly.FromDateTime(DateTime.Now))
+    {
+        updateCurrentTime = true;
+        settings.CurrentDateTime = dateOnly.ToDateTime(new TimeOnly(DateTime.Now.Hour, DateTime.Now.Minute, DateTime.Now.Second));
+    }
+    else
+    {
+        settings.CurrentDateTime = dateOnly.ToDateTime(new TimeOnly(0, 0, 0));
+    }
+    
 
     if (verbose)
     {
@@ -76,6 +86,8 @@ void StartApplication(string startDate, bool alwaysCapture, bool montage, bool o
 
     for (; ; )
     {
+        if (updateCurrentTime) settings.CurrentDateTime = DateTime.Now;
+
         Thread.Sleep(1000);
 
         if (settings.currentDayOfMonth != settings.CurrentDateTime.Day)
@@ -240,7 +252,6 @@ async void ProcessImagesTask(Object? state)
             settings.timerNeedsResetting = true;
 
             await ImageTools.PostDailyVideo(settings, true);
-
 
             ImageTools.GatherSunrisePhotos(settings);
             ImageTools.CreateMontage(settings);
