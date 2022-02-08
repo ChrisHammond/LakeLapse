@@ -17,3 +17,11 @@ You can view the output at [twitter](http://www.twitter.com/LakeLapse), [instagr
 - twitter account with elevated api access
 - raspberry pi, or Windows Subsystem for Linux to process video
 - include the hashtag #lakelapse in your social media posts with videos produced by this application
+
+## Usage
+- edit `LakeLapseBot.dll.config` with your configuration details
+- ffmpeg in your system path or extracted alongside LakeLapse
+- run `./LakeLapse --verbose` or `dotnet LakeLapse.dll --verbose`
+  - additional commands
+  - `./LakeLapse --help`
+  - `./LakeLapse --date "01-01-2022" --montage --verbose`
