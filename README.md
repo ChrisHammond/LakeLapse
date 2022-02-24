@@ -10,7 +10,7 @@ A simple tool for capturing daily timelapses of the sunrise and publishing it on
 - daily video posting to twitter
 
 ## Demo
-You can view the output at [twitter](http://www.twitter.com/LakeLapse), [instagram](www.instagram.com/lakelapse), and [facebook](https://www.facebook.com/groups/lakeontario)
+You can view the output at [twitter](https://twitter.com/LakeLapse), [instagram](htts://www.instagram.com/lakelapse), and [facebook](https://www.facebook.com/groups/lakeontario)
 
 ## Requirements
 - any camera with a guest url for direct jpeg access, we are currently using the g3 flex from ubiquiti
