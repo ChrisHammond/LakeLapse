@@ -52,11 +52,13 @@ namespace OliverHine.LakeLapseBot
 
         public static void CreateMontage(ProgramSettings settings)
         {
+            Console.WriteLine("Montage");
             var path = settings.savePath + settings.MontageFolderName;
 
-            var files = new DirectoryInfo(path).GetFiles("*.jpg").OrderByDescending(i => i.LastWriteTime);
+            var files = new DirectoryInfo(path).GetFiles("*.jpg").OrderByDescending(i => i.FullName);
             string timestampForFile = settings.CurrentDateTime.ToString("yyyyMMdd");
 
+            Console.WriteLine(files.Count());
 
             using (MagickImageCollection images = new MagickImageCollection())
             {
@@ -79,6 +81,10 @@ namespace OliverHine.LakeLapseBot
                     {
                         montageResult.Write(path + Path.DirectorySeparatorChar.ToString() + "montage" + timestampForFile + ".jpg");
                     }
+                }
+                else
+                {
+                    Console.WriteLine("Incomplete row, trying again tomorrow.");
                 }
             }
         }
