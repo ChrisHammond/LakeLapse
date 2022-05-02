@@ -6,18 +6,19 @@ using System.CommandLine;
 var settings = new ProgramSettings();
 
 var alwaysCaptureOption = new Option<bool>("--always-capture", description: "capture images 24/7, default is to capture images during daylight hours and pause at night.");
-var montageOption = new Option<bool>("--montage");
+var montageOption = new Option<bool>("--montage", description: "update montage image, when --date is provided it will step in 1 day increments. otherwise it will just process today.");
 var generateVideoOption = new Option<bool>("--generate-video");
 var tweetOption = new Option<bool>("--post-tweet");
-
+var instagramOption = new Option<bool>("--post-instagram");
 
 var dryRunOption = new Option<bool>("--dry-run");
 var verboseOption = new Option<bool>("--verbose");
 var dateOption = new Option<string>(
         "--date",
         getDefaultValue: () => DateTime.Now.ToShortDateString(),
-        description: "Override the date, default is today."); 
+        description: "Override the date, default is today.");
 
+var showConfigOption = new Option<bool>("--show-config", description: "Override the path, default is read from the config file.");
 
 verboseOption.AddAlias("-v");
 
@@ -33,7 +34,8 @@ var rootCommand = new RootCommand
     montageOption,
     generateVideoOption,
     tweetOption,
-
+    instagramOption,
+    showConfigOption,
     dryRunOption,
     verboseOption
 };
@@ -41,62 +43,93 @@ var rootCommand = new RootCommand
 
 rootCommand.Description = "Lake Lapse Bot by Oliver Hine";
 
-rootCommand.SetHandler((string d, bool ac, bool m, bool tl, bool t, bool dr, bool v) => StartApplication(d, ac, m, tl, t, dr, v), dateOption, alwaysCaptureOption, montageOption, generateVideoOption, tweetOption, dryRunOption, verboseOption);
+rootCommand.SetHandler((string d, bool ac, bool m, bool tl, bool t, bool i, bool sc, bool dr, bool v) => StartApplication(d, ac, m, tl, t, i, sc, dr, v), dateOption, alwaysCaptureOption, montageOption, generateVideoOption, tweetOption, instagramOption, showConfigOption, dryRunOption, verboseOption);
 
 // Parse the incoming args and invoke the handler
 return rootCommand.Invoke(args);
 
 
-
-
-void StartApplication(string startDate, bool alwaysCapture, bool montage, bool outputVideo, bool tweet, bool dryRun, bool verbose)
+void StartApplication(string startDate, bool alwaysCapture, bool montage, bool outputVideo, bool tweet, bool instagram, bool showConfig, bool dryRun, bool verbose)
 {
-
-    DateOnly dateOnly = DateOnly.FromDateTime(DateTime.Now);
-
-    DateOnly.TryParse(startDate, out dateOnly);
-
-    var updateCurrentTime = false;
-    if (dateOnly == DateOnly.FromDateTime(DateTime.Now))
+    if (showConfig)
     {
-        updateCurrentTime = true;
-        settings.CurrentDateTime = dateOnly.ToDateTime(new TimeOnly(DateTime.Now.Hour, DateTime.Now.Minute, DateTime.Now.Second));
+        Console.WriteLine("Showing Configuration");
+        Console.WriteLine("Path: " + settings.savePath);
     }
     else
     {
-        settings.CurrentDateTime = dateOnly.ToDateTime(new TimeOnly(0, 0, 0));
-    }
-    
+        DateOnly dateOnly = DateOnly.FromDateTime(DateTime.Now);
 
-    if (verbose)
-    {
-        Console.WriteLine("Starting Application with a start date of: " + settings.CurrentDateTime.ToShortDateString());
-    }
-    
-    settings.verbose = verbose;
+        DateOnly.TryParse(startDate, out dateOnly);
 
-
-    calcSunTimes();
-
-    if (!dryRun)
-    {
-        setTimer();
-    }
-    
-
-    for (; ; )
-    {
-        if (updateCurrentTime) settings.CurrentDateTime = DateTime.Now;
-
-        Thread.Sleep(1000);
-
-        if (settings.currentDayOfMonth != settings.CurrentDateTime.Day)
+        var updateCurrentTime = false;
+        if (dateOnly == DateOnly.FromDateTime(DateTime.Now))
         {
-            calcSunTimes();
+            updateCurrentTime = true;
+            settings.CurrentDateTime = dateOnly.ToDateTime(new TimeOnly(DateTime.Now.Hour, DateTime.Now.Minute, DateTime.Now.Second));
         }
+        else
+        {
+            settings.CurrentDateTime = dateOnly.ToDateTime(new TimeOnly(0, 0, 0));
+        }
+
+
+        if (verbose)
+        {
+            Console.WriteLine("Starting Application with a start date of: " + settings.CurrentDateTime.ToShortDateString());
+        }
+
+        settings.verbose = verbose;
+
+
+        calcSunTimes();
+
+        if (!dryRun)
+        {
+            setTimer();
+        }
+
+        for (; ; )
+        {
+            if (updateCurrentTime)
+            {
+                settings.CurrentDateTime = DateTime.Now;
+            }
+            else if (montage && settings.CurrentDateTime.Date <= DateTime.Now.Date)
+            {
+                Console.WriteLine("Montage");
+                Console.WriteLine(settings.CurrentDateTime.Date);
+                ImageTools.GatherSunrisePhotos(settings);
+
+                if (settings.CurrentDateTime.Date == DateTime.Now.Date)
+                {
+                    Console.WriteLine(settings.CurrentDateTime.Date);
+                    ImageTools.CreateMontage(settings);
+                }
+
+                settings.CurrentDateTime = settings.CurrentDateTime.AddDays(1);
+            }
+            else if (instagram && settings.CurrentDateTime.Date <= DateTime.Now.Date)
+            {
+                Console.WriteLine("instagram: not ready yet.");
+                //Console.WriteLine(ImageTools.PostDailyVideoInstagram(settings, true));
+            }
+
+            Thread.Sleep(1000);
+
+            if (settings.currentDayOfMonth != settings.CurrentDateTime.Day)
+            {
+                calcSunTimes();
+            }
+        }
+
     }
 }
 
+void cancelTimer()
+{
+    if (settings.theTimer != null) settings.theTimer.Dispose();
+}
 
 void setTimer()
 {
@@ -107,7 +140,7 @@ void setTimer()
         || settings.CurrentDateTime < settings.sunrise.AddMinutes(settings.StartBeforeSunrise * -1))
                 && settings._photoInterval != settings.photodelayProcessing || settings.timerNeedsResetting)
     {
-        if (settings.theTimer != null) settings.theTimer.Dispose();
+        cancelTimer();
 
         timerInProcessingMode = true;
 
@@ -179,18 +212,15 @@ void setTimer()
     {
         if (settings.boolFirstRun)
         {
-            //_photoInterval = PhotoIntervalUpdated;
             settings.boolFirstRun = false;
         }
 
-        if (settings.theTimer != null) settings.theTimer.Dispose(); //cancel teh timer. 
+        cancelTimer();
 
         settings.theTimer = new Timer(callback: timerInProcessingMode ? ProcessImagesTask : DownloadImagesTask, state: 5, dueTime: settings._photoInterval, period: settings.PhotoInterval);
 
-        if (settings.verbose) Console.WriteLine("switched to: " + settings.PhotoIntervalUpdated + ":" + settings._photoInterval + ":" + settings.CurrentDateTime.ToLongTimeString());
+        if (settings.verbose) Console.WriteLine("interval switched to " + (settings.PhotoIntervalUpdated / 1000) + ", it was " + (settings._photoInterval / 1000) + " @ " + settings.CurrentDateTime.ToLongTimeString());
     }
-    //if (theTimer != null) theTimer.Dispose(); //cancel teh timer. 
-    //theTimer = new Timer(ComputeBoundOp, 5, 0, PhotoInterval);
 }
 
 void DownloadImagesTask(Object? state)
@@ -233,8 +263,10 @@ async void ProcessImagesTask(Object? state)
 
         if (settings.verbose)
         {
-            Console.WriteLine("PFrames: " + processedframeCount);
-            Console.WriteLine("UFrames: " + unprocessedframeCount);
+            Console.WriteLine("Processed Frames: " + processedframeCount);
+            Console.WriteLine(string.Concat(savePath, String.Format("snap-{0}-*.jpg", timestampForFile)));
+            Console.WriteLine("Unprocessed Frames: " + unprocessedframeCount);
+            Console.WriteLine(string.Concat(settings.savePathImage, String.Format("snap-{0}-*.jpg", timestampForFile)));
         }
 
         if (!File.Exists(string.Format("{2}daily{0}-{3}.mp4", timestampForFile, savePath, settings.savePathImage, processedframeCount)) && unprocessedframeCount > 250)
@@ -245,7 +277,6 @@ async void ProcessImagesTask(Object? state)
 
             int totalFrameCount = Directory.GetFiles(savePath, String.Format("snap-{0}-*.jpg", timestampForFile)).Length;
 
-            if (settings.verbose) Console.Write("-");
             ImageTools.ProcessDailyVideo(settings, totalFrameCount);
 
             if (settings.verbose) Console.WriteLine("Video Fully Processed.");
@@ -253,8 +284,8 @@ async void ProcessImagesTask(Object? state)
 
             await ImageTools.PostDailyVideo(settings, true);
 
-            ImageTools.GatherSunrisePhotos(settings);
-            ImageTools.CreateMontage(settings);
+            //ImageTools.GatherSunrisePhotos(settings);
+            //ImageTools.CreateMontage(settings);
         }
         else
         {
@@ -293,6 +324,8 @@ void calcSunTimes()
     var sunPosition = SunCalcNet.SunCalc.GetSunPosition(settings.date, settings.latitude, settings.longitude);
     var sunPhases = SunCalcNet.SunCalc.GetSunPhases(settings.date, settings.latitude, settings.longitude);
 
+    var moonPhases = SunCalcNet.MoonCalc.GetMoonPhase(settings.date, settings.latitude, settings.longitude);
+
     foreach (var sunPhase in sunPhases)
     {
         switch (sunPhase.Name.Value.ToLower())
@@ -311,6 +344,30 @@ void calcSunTimes()
     if (settings.verbose)
     {
         Console.Write(string.Format("Sunrise: {0} - Sunset: {1}", settings.sunrise, settings.sunset));
+        if (moonPhases.AlwaysUp)
+        {
+            Console.Write("Moon is always visible.");
+        }
+        else if (moonPhases.AlwaysDown)
+        {
+            Console.Write("Moon isn't visible");
+        }
+        else if (moonPhases.Rise.HasValue && moonPhases.Set.HasValue)
+        {
+
+            var moonPostion = SunCalcNet.MoonCalc.GetMoonPosition(moonPhases.Rise.Value, settings.latitude, settings.longitude);
+
+            if (moonPhases.Rise > moonPhases.Set)
+            {
+                var moonSetPhase = SunCalcNet.MoonCalc.GetMoonPhase(settings.date.AddDays(1), settings.latitude, settings.longitude);
+                //(this * 180 / PI);
+                Console.Write(string.Format("Moonrise: {0} - Moonset: {1} - Azimuth: {2}", moonPhases.Rise, moonSetPhase.Set, moonPostion.Azimuth * 180 / Math.PI));
+            } else
+            {
+                Console.Write(string.Format("Moonrise: {0} - Moonset: {1} - Azimuth: {2}", moonPhases.Rise, moonPhases.Set, moonPostion.Azimuth * 180 / Math.PI));
+            }
+        }
+        
         Console.WriteLine();
     }
 }
