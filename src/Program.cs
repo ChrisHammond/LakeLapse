@@ -7,6 +7,7 @@ var settings = new ProgramSettings();
 
 var alwaysCaptureOption = new Option<bool>("--always-capture", description: "capture images 24/7, default is to capture images during daylight hours and pause at night.");
 var montageOption = new Option<bool>("--montage", description: "update montage image, when --date is provided it will step in 1 day increments. otherwise it will just process today.");
+var forceMontageOption = new Option<bool>("--force-montage", description: "allow incomplete rows");
 var generateVideoOption = new Option<bool>("--generate-video");
 var tweetOption = new Option<bool>("--post-tweet");
 var instagramOption = new Option<bool>("--post-instagram");
@@ -32,6 +33,7 @@ var rootCommand = new RootCommand
 
     alwaysCaptureOption,
     montageOption,
+    forceMontageOption,
     generateVideoOption,
     tweetOption,
     instagramOption,
@@ -43,13 +45,13 @@ var rootCommand = new RootCommand
 
 rootCommand.Description = "Lake Lapse Bot by Oliver Hine";
 
-rootCommand.SetHandler((string d, bool ac, bool m, bool tl, bool t, bool i, bool sc, bool dr, bool v) => StartApplication(d, ac, m, tl, t, i, sc, dr, v), dateOption, alwaysCaptureOption, montageOption, generateVideoOption, tweetOption, instagramOption, showConfigOption, dryRunOption, verboseOption);
+rootCommand.SetHandler((string d, bool ac, bool m, bool fm, bool tl, bool t, bool i, bool sc, bool dr, bool v) => StartApplication(d, ac, m, fm, tl, t, i, sc, dr, v), dateOption, alwaysCaptureOption, montageOption, forceMontageOption, generateVideoOption, tweetOption, instagramOption, showConfigOption, dryRunOption, verboseOption);
 
 // Parse the incoming args and invoke the handler
 return rootCommand.Invoke(args);
 
 
-void StartApplication(string startDate, bool alwaysCapture, bool montage, bool outputVideo, bool tweet, bool instagram, bool showConfig, bool dryRun, bool verbose)
+void StartApplication(string startDate, bool alwaysCapture, bool montage, bool forceMontage, bool outputVideo, bool tweet, bool instagram, bool showConfig, bool dryRun, bool verbose)
 {
     if (showConfig)
     {
@@ -104,7 +106,7 @@ void StartApplication(string startDate, bool alwaysCapture, bool montage, bool o
                 if (settings.CurrentDateTime.Date == DateTime.Now.Date)
                 {
                     Console.WriteLine(settings.CurrentDateTime.Date);
-                    ImageTools.CreateMontage(settings);
+                    ImageTools.CreateMontage(settings, forceMontage);
                 }
 
                 settings.CurrentDateTime = settings.CurrentDateTime.AddDays(1);

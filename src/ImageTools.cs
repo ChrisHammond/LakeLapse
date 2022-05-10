@@ -50,7 +50,7 @@ namespace OliverHine.LakeLapseBot
             return outcome < 0 ? outcome * -1 : outcome;
         }
 
-        public static void CreateMontage(ProgramSettings settings)
+        public static void CreateMontage(ProgramSettings settings, bool ignoreFullRowSetting)
         {
             Console.WriteLine("Montage");
             var path = settings.savePath + settings.MontageFolderName;
@@ -71,7 +71,7 @@ namespace OliverHine.LakeLapseBot
                 }
 
                 //we want full rows only
-                if (images.Count % settings.MontageImagesPerRow == 0)
+                if (images.Count % settings.MontageImagesPerRow == 0 || ignoreFullRowSetting)
                 {
                     MontageSettings ms = new MontageSettings();
                     ms.Geometry = new MagickGeometry(string.Format("{0}x{1}", 200, 113));
